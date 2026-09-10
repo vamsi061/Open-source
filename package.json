@@ -1,0 +1,14 @@
+{
+  "name": "repovault",
+  "version": "1.0.0",
+  "description": "Catalog of open-source projects with one-click run recipes",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "express": "^4.19.2"
+  }
+}

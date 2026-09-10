@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RepoVault</title>
+<style>
+:root {
+  --bg: #0f1115; --panel: #171a21; --card: #1d212b; --border: #2a2f3a;
+  --text: #e6e9ef; --muted: #8a92a3; --accent: #4f8cff; --ok: #34c28f;
+  --fail: #ff5c6c; --running: #ffb84f;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; }
+header { display: flex; gap: 12px; align-items: center; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--border); }
+header h1 { font-size: 18px; color: var(--accent); margin-right: 8px; }
+#search { flex: 0 1 340px; padding: 8px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; color: var(--text); outline: none; }
+#search:focus { border-color: var(--accent); }
+button { padding: 8px 14px; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
+button.secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+button.danger { background: transparent; color: var(--fail); border: 1px solid var(--fail); }
+button:hover { filter: brightness(1.1); }
+main { flex: 1; display: flex; min-height: 0; }
+aside { width: 320px; background: var(--panel); border-right: 1px solid var(--border); overflow-y: auto; padding: 10px; }
+.project { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; cursor: pointer; }
+.project:hover { border-color: var(--accent); }
+.project.active { border-color: var(--accent); background: #212736; }
+.p-name { font-weight: 700; font-size: 15px; }
+.p-purpose { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.p-tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+.tag { background: #263043; color: var(--accent); border-radius: 999px; padding: 2px 9px; font-size: 11px; }
+.empty { color: var(--muted); padding: 20px; text-align: center; }
+#detail { flex: 1; overflow-y: auto; padding: 24px; }
+.placeholder { color: var(--muted); text-align: center; margin-top: 80px; }
+.d-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.d-head h2 { font-size: 22px; flex: 1; }
+.d-purpose { color: var(--muted); margin: 6px 0 2px; }
+.d-repo a { color: var(--accent); text-decoration: none; font-size: 13px; }
+.d-actions { display: flex; gap: 8px; }
+section.recipes { margin-top: 26px; }
+section.recipes h3 { margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+.recipe { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+.r-top { display: flex; align-items: center; gap: 10px; }
+.r-title { font-weight: 700; flex: 1; }
+.r-cmd { font: 12px/1.5 ui-monospace, monospace; background: #10131a; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin: 8px 0; color: #9ecbff; overflow-x: auto; white-space: pre-wrap; }
+.r-meta { color: var(--muted); font-size: 12px; }
+.r-last { margin-top: 8px; font-size: 12px; color: var(--muted); }
+.badge { padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.badge.success { background: #12312a; color: var(--ok); }
+.badge.failed { background: #3a1520; color: var(--fail); }
+.badge.running { background: #33270f; color: var(--running); }
+#output-panel { position: fixed; left: 0; right: 0; bottom: 0; max-height: 46vh; background: var(--panel); border-top: 2px solid var(--accent); transform: translateY(100%); transition: transform .25s; display: flex; flex-direction: column; }
+#output-panel.open { transform: translateY(0); }
+.o-head { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--border); }
+.o-head .r-meta { flex: 1; }
+#output { flex: 1; overflow: auto; padding: 14px 20px; font: 12px/1.6 ui-monospace, monospace; white-space: pre-wrap; color: #cfe3ff; }
+dialog { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 22px; width: 440px; }
+dialog::backdrop { background: rgba(0,0,0,.6); }
+dialog h2 { font-size: 17px; margin-bottom: 14px; }
+dialog label { display: block; color: var(--muted); font-size: 12px; margin: 10px 0 3px; }
+dialog input, dialog textarea { width: 100%; padding: 8px 10px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font: 13px/1.5 inherit; outline: none; }
+dialog textarea { font-family: ui-monospace, monospace; min-height: 56px; }
+dialog input:focus, dialog textarea:focus { border-color: var(--accent); }
+.dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.mono { font-family: ui-monospace, monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📦 RepoVault</h1>
+  <input id="search" placeholder="Search purpose, name, tag… (e.g. pdf, proxy)">
+  <button id="new-project-btn" style="margin-left:auto">＋ New Project</button>
+</header>
+<main>
+  <aside><ul id="project-list" style="list-style:none"></ul></aside>
+  <section id="detail"><div class="placeholder">Select a project, or create one</div></section>
+</main>
+<section id="output-panel">
+  <div class="o-head">
+    <strong id="output-title">Run</strong>
+    <span id="run-status" class="badge running">running</span>
+    <span class="r-meta" id="exit-code"></span>
+    <button id="kill-btn" class="danger">Kill</button>
+    <button id="close-output" class="secondary">Close</button>
+  </div>
+  <pre id="output"></pre>
+</section>
+<dialog id="project-dialog">
+  <form id="project-form">
+    <h2 id="project-dlg-title">New Project</h2>
+    <label>Name *</label><input name="name" required>
+    <label>GitHub / repo URL</label><input name="repo_url" placeholder="https://github.com/…">
+    <label>Purpose (what do you use it for?)</label><input name="purpose" placeholder="e.g. PDF conversion, reverse proxy…">
+    <label>Tags (comma separated)</label><input name="tags" placeholder="pdf, tools, ai">
+    <div class="dlg-actions">
+      <button type="button" class="secondary" id="project-cancel">Cancel</button>
+      <button type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="recipe-dialog">
+  <form id="recipe-form">
+    <h2>New Recipe</h2>
+    <label>Title *</label><input name="title" required placeholder="Start dev server">
+    <label>Command *</label><input name="command" required class="mono" placeholder="npm run dev">
+    <label>Setup (optional, runs before command)</label><input name="setup" class="mono" placeholder="npm install">
+    <label>Working dir (optional, absolute path)</label><input name="working_dir" class="mono" placeholder="/root/my-project">
+    <label>Env vars (optional, KEY=value per line)</label><textarea name="env" placeholder="PORT=3000\nNODE_ENV=dev"></textarea>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:14px;cursor:pointer;color:var(--text);font-size:13px">
+      <input type="checkbox" name="use_venv" style="width:auto"> 🐍 Use Python venv (auto-creates <span class="mono">.venv</span>, activates it before running)
+    </label>
+    <div class="dlg-actions">
+      <button type="button" class="secondary" id="recipe-cancel">Cancel</button>
+      <button type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+<script src="/app.js"></script>
+</body>
+</html>

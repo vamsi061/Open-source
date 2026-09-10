@@ -1,0 +1,9 @@
+function getRecipeForRun(runId) {
+  return db.prepare(`
+    SELECT r.*, re.name AS repo_name
+    FROM runs ru
+    JOIN recipes re ON re.id = ru.recipe_id
+    LEFT JOIN repos re ON re.project_id = re.id
+    WHERE ru.id = ?
+  `).get(runId);
+}
