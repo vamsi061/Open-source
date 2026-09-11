@@ -3,118 +3,217 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0e0f11">
 <title>RepoVault</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%230e0f11'/%3E%3Ccircle cx='12' cy='9' r='3.5' stroke='%23c9a45c' stroke-width='2' fill='none'/%3E%3Cpath d='M10.7 12 9 20h6l-1.7-8' stroke='%23c9a45c' stroke-width='2' fill='none'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+/* ---------- tokens: graphite vault, brass action, teal reference ---------- */
 :root {
-  --bg: #0f1115; --panel: #171a21; --card: #1d212b; --border: #2a2f3a;
-  --text: #e6e9ef; --muted: #8a92a3; --accent: #4f8cff; --ok: #34c28f;
-  --fail: #ff5c6c; --running: #ffb84f;
+  --bg: #0e0f11; --panel: #141518; --surface: #1a1c20; --surface-2: #22242a;
+  --line: #2a2d33; --line-strong: #3d414a;
+  --text: #eae8e2; --muted: #9c998f;
+  --brass: #c9a45c; --brass-ink: #1a1305; --teal: #56b8a8;
+  --ok: #6cb87e; --fail: #e05a6b; --run: #e2b25c;
+  --font-ui: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; }
-header { display: flex; gap: 12px; align-items: center; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--border); }
-header h1 { font-size: 18px; color: var(--accent); margin-right: 8px; }
-#search { flex: 0 1 340px; padding: 8px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; color: var(--text); outline: none; }
-#search:focus { border-color: var(--accent); }
-button { padding: 8px 14px; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
-button.secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
-button.danger { background: transparent; color: var(--fail); border: 1px solid var(--fail); }
-button:hover { filter: brightness(1.1); }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--font-ui); display: flex; flex-direction: column; overflow: hidden; }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; border-radius: 4px; }
+input[type="checkbox"] { accent-color: var(--brass); }
+
+/* ---------- scrollbars: keep them in the graphite palette ---------- */
+* { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- header ---------- */
+header { display: flex; align-items: center; gap: 14px; padding: 10px 18px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-mark { width: 30px; height: 30px; border: 1.5px solid var(--brass); border-radius: 7px; display: grid; place-items: center; color: var(--brass); flex-shrink: 0; }
+.brand h1 { font-size: 16px; font-weight: 600; letter-spacing: .2px; line-height: 1.15; }
+.brand small { display: block; font-size: 11px; font-weight: 400; color: var(--muted); letter-spacing: .2px; }
+#search { flex: 0 1 380px; margin-left: auto; padding: 8px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; color: var(--text); font: 13px var(--font-ui); outline: none; }
+#search:focus { border-color: var(--brass); }
+#search::placeholder { color: var(--muted); }
+
+/* ---------- buttons ---------- */
+button { font: 600 13px var(--font-ui); padding: 7px 14px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; background: var(--surface-2); color: var(--text); transition: filter .12s; }
+button:hover { filter: brightness(1.15); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--brass); color: var(--brass-ink); }
+button.ghost { background: transparent; border-color: var(--line-strong); }
+button.danger { background: transparent; border-color: var(--fail); color: var(--fail); }
+
+/* ---------- layout ---------- */
 main { flex: 1; display: flex; min-height: 0; }
-aside { width: 320px; background: var(--panel); border-right: 1px solid var(--border); overflow-y: auto; padding: 10px; }
-.project { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; cursor: pointer; }
-.project:hover { border-color: var(--accent); }
-.project.active { border-color: var(--accent); background: #212736; }
-.p-name { font-weight: 700; font-size: 15px; }
-.p-purpose { color: var(--muted); font-size: 13px; margin-top: 2px; }
+aside { width: 300px; flex-shrink: 0; background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; }
+.side-head { display: flex; align-items: baseline; justify-content: space-between; padding: 12px 14px 8px; color: var(--muted); font-size: 12.5px; }
+#project-list { list-style: none; }
+.project { position: relative; padding: 11px 14px 11px 17px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.project::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: transparent; }
+.project:hover { background: var(--surface); }
+.project.active { background: var(--surface); }
+.project.active::before { background: var(--brass); }
+.p-name { font-weight: 600; font-size: 14px; }
+.p-purpose { color: var(--muted); font-size: 12.5px; margin-top: 1px; }
 .p-tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
-.tag { background: #263043; color: var(--accent); border-radius: 999px; padding: 2px 9px; font-size: 11px; }
-.empty { color: var(--muted); padding: 20px; text-align: center; }
-#detail { flex: 1; overflow-y: auto; padding: 24px; }
-.placeholder { color: var(--muted); text-align: center; margin-top: 80px; }
-.d-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
-.d-head h2 { font-size: 22px; flex: 1; }
-.d-purpose { color: var(--muted); margin: 6px 0 2px; }
-.d-repo a { color: var(--accent); text-decoration: none; font-size: 13px; }
+.tag { background: var(--surface-2); color: var(--teal); border-radius: 999px; padding: 1px 9px; font-size: 11px; }
+.empty { color: var(--muted); padding: 22px 16px; text-align: center; font-size: 13px; }
+
+#detail { flex: 1; overflow-y: auto; padding: 26px 32px 120px; min-width: 0; }
+.placeholder { color: var(--muted); text-align: center; margin-top: 90px; font-size: 14px; }
+
+/* ---------- detail header ---------- */
+.d-head { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.d-head h2 { font-size: 27px; font-weight: 700; letter-spacing: -.3px; line-height: 1.2; flex: 1; min-width: 200px; }
 .d-actions { display: flex; gap: 8px; }
-section.recipes { margin-top: 26px; }
-section.recipes h3 { margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
-.recipe { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
-.r-top { display: flex; align-items: center; gap: 10px; }
-.r-title { font-weight: 700; flex: 1; }
-.r-cmd { font: 12px/1.5 ui-monospace, monospace; background: #10131a; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin: 8px 0; color: #9ecbff; overflow-x: auto; white-space: pre-wrap; }
-.r-meta { color: var(--muted); font-size: 12px; }
-.r-last { margin-top: 8px; font-size: 12px; color: var(--muted); }
-.badge { padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
-.badge.success { background: #12312a; color: var(--ok); }
-.badge.failed { background: #3a1520; color: var(--fail); }
-.badge.running { background: #33270f; color: var(--running); }
-#output-panel { position: fixed; left: 0; right: 0; bottom: 0; max-height: 46vh; background: var(--panel); border-top: 2px solid var(--accent); transform: translateY(100%); transition: transform .25s; display: flex; flex-direction: column; }
-#output-panel.open { transform: translateY(0); }
-.o-head { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--border); }
-.o-head .r-meta { flex: 1; }
-#output { flex: 1; overflow: auto; padding: 14px 20px; font: 12px/1.6 ui-monospace, monospace; white-space: pre-wrap; color: #cfe3ff; }
-dialog { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 22px; width: 440px; }
-dialog::backdrop { background: rgba(0,0,0,.6); }
-dialog h2 { font-size: 17px; margin-bottom: 14px; }
-dialog label { display: block; color: var(--muted); font-size: 12px; margin: 10px 0 3px; }
-dialog input, dialog textarea { width: 100%; padding: 8px 10px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font: 13px/1.5 inherit; outline: none; }
-dialog textarea { font-family: ui-monospace, monospace; min-height: 56px; }
-dialog input:focus, dialog textarea:focus { border-color: var(--accent); }
-.dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
-.mono { font-family: ui-monospace, monospace; font-size: 12px; }
+.d-purpose { color: var(--muted); font-size: 14px; margin-top: 4px; }
+.d-repo { margin-top: 6px; }
+.d-repo a { color: var(--teal); text-decoration: none; font: 12.5px var(--font-mono); }
+.d-repo a:hover { text-decoration: underline; }
+.d-desc { opacity: .85; margin-top: 8px; max-width: 70ch; }
+.d-tags { margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap; }
+
+/* ---------- recipes ---------- */
+section.recipes { margin-top: 30px; }
+section.recipes h3 { font-size: 15px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.recipe { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; }
+.r-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.r-title { font-weight: 600; font-size: 14.5px; }
+.r-spacer { flex: 1; }
+.r-cmd { font: 12.5px/1.6 var(--font-mono); background: #101216; border: 1px solid var(--line); border-radius: 6px; padding: 9px 12px; margin: 10px 0 8px; color: #9fd4c9; overflow-x: auto; white-space: pre-wrap; }
+.r-meta { color: var(--muted); font-size: 12px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.venv-chip { font: 500 11px var(--font-mono); padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted); background: transparent; }
+.venv-chip.on { border-color: var(--teal); color: var(--teal); }
+.r-last { margin-top: 9px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.r-last.clickable { cursor: pointer; }
+.r-last.clickable:hover { color: var(--text); }
+
+/* run ribbon: recent run history as status squares, oldest → newest */
+.ribbon { display: inline-flex; gap: 3px; align-items: center; }
+.ribbon i { width: 9px; height: 9px; border-radius: 2px; background: var(--line-strong); }
+.ribbon i.success { background: var(--ok); }
+.ribbon i.failed { background: var(--fail); }
+.ribbon i.running { background: var(--run); animation: blink 1.1s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .35; } }
+
+/* ---------- badges ---------- */
+.badge { font: 600 10.5px var(--font-mono); padding: 2px 8px; border-radius: 4px; letter-spacing: .4px; }
+.badge.success { background: rgba(108, 184, 126, .15); color: var(--ok); }
+.badge.failed { background: rgba(224, 90, 107, .15); color: var(--fail); }
+.badge.running { background: rgba(226, 178, 92, .15); color: var(--run); }
+
+/* ---------- output drawer ---------- */
+#output-panel { position: fixed; left: 0; right: 0; bottom: 0; max-height: 48vh; background: #0b0c0e; border-top: 2px solid var(--brass); display: flex; flex-direction: column; transform: translateY(102%); transition: transform .22s ease; z-index: 20; }
+#output-panel.open { transform: none; }
+.o-head { display: flex; align-items: center; gap: 12px; padding: 9px 18px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.o-head strong { font-size: 13.5px; }
+.o-meta { flex: 1; color: var(--muted); font: 12px var(--font-mono); }
+#output { flex: 1; overflow: auto; padding: 12px 18px; font: 12.5px/1.65 var(--font-mono); white-space: pre-wrap; color: #cfe0da; }
+
+/* ---------- dialogs ---------- */
+/* margin:auto restores modal centering that the * reset removes; scroll inside on short viewports */
+dialog { margin: auto; max-height: calc(100vh - 48px); overflow-y: auto; background: var(--panel); color: var(--text); border: 1px solid var(--line-strong); border-radius: 10px; padding: 22px; width: min(500px, 92vw); }
+dialog::backdrop { background: rgba(0, 0, 0, .6); }
+dialog h2 { font-size: 17px; font-weight: 600; }
+dialog label { display: block; color: var(--muted); font-size: 12px; margin: 12px 0 4px; }
+dialog input, dialog textarea { width: 100%; padding: 8px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; color: var(--text); font: 13px var(--font-ui); outline: none; }
+dialog input:focus, dialog textarea:focus { border-color: var(--brass); }
+dialog textarea { font-family: var(--font-mono); font-size: 12.5px; min-height: 60px; resize: vertical; }
+.mono { font-family: var(--font-mono) !important; font-size: 12.5px !important; }
+.check-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; cursor: pointer; color: var(--text); font-size: 13px; }
+.check-row input { width: auto; }
+.dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+/* ---------- toast ---------- */
+#toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(16px); opacity: 0; background: var(--surface-2); border: 1px solid var(--line-strong); padding: 9px 16px; border-radius: 8px; font-size: 13px; pointer-events: none; transition: opacity .18s, transform .18s; z-index: 60; }
+#toast.show { opacity: 1; transform: translateX(-50%); }
+
+/* ---------- responsive & motion ---------- */
+@media (max-width: 860px) {
+  main { flex-direction: column; }
+  aside { width: 100%; max-height: 34vh; border-right: none; border-bottom: 1px solid var(--line); }
+  #detail { padding: 18px 16px 120px; }
+  #search { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
 </style>
 </head>
 <body>
 <header>
-  <h1>📦 RepoVault</h1>
-  <input id="search" placeholder="Search purpose, name, tag… (e.g. pdf, proxy)">
-  <button id="new-project-btn" style="margin-left:auto">＋ New Project</button>
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="9" r="4" stroke="currentColor" stroke-width="2"/>
+        <path d="M10.5 12.5 8.5 21h7l-2-8.5" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+    </span>
+    <h1>RepoVault<small>run ledger for open-source repos</small></h1>
+  </div>
+  <input id="search" type="search" placeholder="Search name, purpose, tag…" aria-label="Search projects">
+  <button class="primary" id="new-project-btn">＋ New project</button>
 </header>
+
 <main>
-  <aside><ul id="project-list" style="list-style:none"></ul></aside>
+  <aside>
+    <div class="side-head"><span>Projects</span><span id="project-count"></span></div>
+    <ul id="project-list"></ul>
+  </aside>
   <section id="detail"><div class="placeholder">Select a project, or create one</div></section>
 </main>
-<section id="output-panel">
+
+<section id="output-panel" aria-label="Run output">
   <div class="o-head">
     <strong id="output-title">Run</strong>
     <span id="run-status" class="badge running">running</span>
-    <span class="r-meta" id="exit-code"></span>
-    <button id="kill-btn" class="danger">Kill</button>
-    <button id="close-output" class="secondary">Close</button>
+    <span class="o-meta" id="exit-code"></span>
+    <button class="danger" id="kill-btn">Kill</button>
+    <button class="ghost" id="close-output">Close</button>
   </div>
   <pre id="output"></pre>
 </section>
+
+<div id="toast" role="status"></div>
+
 <dialog id="project-dialog">
   <form id="project-form">
-    <h2 id="project-dlg-title">New Project</h2>
-    <label>Name *</label><input name="name" required>
-    <label>GitHub / repo URL</label><input name="repo_url" placeholder="https://github.com/…">
-    <label>Purpose (what do you use it for?)</label><input name="purpose" placeholder="e.g. PDF conversion, reverse proxy…">
-    <label>Tags (comma separated)</label><input name="tags" placeholder="pdf, tools, ai">
+    <h2 id="project-dlg-title">New project</h2>
+    <label for="pf-name">Name *</label><input id="pf-name" name="name" required>
+    <label for="pf-repo">Repo URL</label><input id="pf-repo" name="repo_url" class="mono" placeholder="https://github.com/…">
+    <label for="pf-purpose">Purpose (what do you use it for?)</label><input id="pf-purpose" name="purpose" placeholder="e.g. PDF conversion, reverse proxy…">
+    <label for="pf-tags">Tags (comma separated)</label><input id="pf-tags" name="tags" placeholder="pdf, tools, ai">
     <div class="dlg-actions">
-      <button type="button" class="secondary" id="project-cancel">Cancel</button>
-      <button type="submit">Save</button>
+      <button type="button" class="ghost" id="project-cancel">Cancel</button>
+      <button type="submit" class="primary">Save project</button>
     </div>
   </form>
 </dialog>
+
 <dialog id="recipe-dialog">
   <form id="recipe-form">
-    <h2>New Recipe</h2>
-    <label>Title *</label><input name="title" required placeholder="Start dev server">
-    <label>Command *</label><input name="command" required class="mono" placeholder="npm run dev">
-    <label>Setup (optional, runs before command)</label><input name="setup" class="mono" placeholder="npm install">
-    <label>Working dir (optional, absolute path)</label><input name="working_dir" class="mono" placeholder="/root/my-project">
-    <label>Env vars (optional, KEY=value per line)</label><textarea name="env" placeholder="PORT=3000\nNODE_ENV=dev"></textarea>
-    <label style="display:flex;align-items:center;gap:8px;margin-top:14px;cursor:pointer;color:var(--text);font-size:13px">
-      <input type="checkbox" name="use_venv" style="width:auto"> 🐍 Use Python venv (auto-creates <span class="mono">.venv</span>, activates it before running)
-    </label>
+    <h2 id="recipe-dlg-title">New recipe</h2>
+    <label for="rf-title">Title *</label><input id="rf-title" name="title" required placeholder="Start dev server">
+    <label for="rf-command">Command * (one per line, run in order)</label><textarea id="rf-command" name="command" required class="mono" placeholder="python vehicle_lookup.py&#10;python export.py"></textarea>
+    <label for="rf-args">Arguments (appended to the command line)</label><input id="rf-args" name="args" class="mono" placeholder="--rc=AP16DH1924">
+    <label for="rf-setup">Setup (runs before the command)</label><input id="rf-setup" name="setup" class="mono" placeholder="pip install -r requirements.txt">
+    <label for="rf-dir">Working directory (absolute path)</label><input id="rf-dir" name="working_dir" class="mono" placeholder="/Users/you/project">
+    <label for="rf-env">Env vars (KEY=value per line)</label><textarea id="rf-env" name="env" placeholder="PORT=3000"></textarea>
+    <label class="check-row"><input type="checkbox" name="use_venv"> <span>Create &amp; activate <span class="mono">.venv</span> before running</span></label>
     <div class="dlg-actions">
-      <button type="button" class="secondary" id="recipe-cancel">Cancel</button>
-      <button type="submit">Save</button>
+      <button type="button" class="ghost" id="recipe-cancel">Cancel</button>
+      <button type="submit" class="primary">Save recipe</button>
     </div>
   </form>
 </dialog>
+
 <script src="/app.js"></script>
 </body>
 </html>

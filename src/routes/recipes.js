@@ -15,14 +15,15 @@ router.get('/', (req, res) => {
   res.json(rows);
 });
 
-// POST /api/recipes { project_id, title, command, setup, working_dir, env, use_venv }
+// POST /api/recipes { project_id, title, command, args, setup, working_dir, env, use_venv }
+// command may hold multiple lines — they run sequentially. args is appended to the command line.
 router.post('/', (req, res) => {
-  const { project_id, title, command, setup = '', working_dir = '', env = '', use_venv = 0 } = req.body || {};
+  const { project_id, title, command, args = '', setup = '', working_dir = '', env = '', use_venv = 0 } = req.body || {};
   if (!project_id || !title || !command) return res.status(400).json({ error: 'project_id, title, command are required' });
   const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(project_id);
   if (!project) return res.status(404).json({ error: 'Project not found' });
-  const info = db.prepare('INSERT INTO recipes (project_id, title, command, setup, working_dir, env, use_venv) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .run(project_id, title, command, setup, working_dir, env, use_venv ? 1 : 0);
+  const info = db.prepare('INSERT INTO recipes (project_id, title, command, args, setup, working_dir, env, use_venv) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(project_id, title, command, args, setup, working_dir, env, use_venv ? 1 : 0);
   res.status(201).json(db.prepare('SELECT * FROM recipes WHERE id = ?').get(info.lastInsertRowid));
 });
 
@@ -30,10 +31,10 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   const row = db.prepare('SELECT * FROM recipes WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Recipe not found' });
-  const { title, command, setup, working_dir, env, use_venv } = req.body || {};
-  db.prepare('UPDATE recipes SET title = ?, command = ?, setup = ?, working_dir = ?, env = ?, use_venv = ? WHERE id = ?')
-    .run(title ?? row.title, command ?? row.command, setup ?? row.setup, working_dir ?? row.working_dir, env ?? row.env,
-      use_venv === undefined ? row.use_venv : (use_venv ? 1 : 0), req.params.id);
+  const { title, command, args, setup, working_dir, env, use_venv } = req.body || {};
+  db.prepare('UPDATE recipes SET title = ?, command = ?, args = ?, setup = ?, working_dir = ?, env = ?, use_venv = ? WHERE id = ?')
+    .run(title ?? row.title, command ?? row.command, args ?? (row.args ?? ''), setup ?? row.setup, working_dir ?? row.working_dir, env ?? row.env,
+      use_venv === undefined ? (row.use_venv ?? 0) : (use_venv ? 1 : 0), req.params.id);
   res.json(db.prepare('SELECT * FROM recipes WHERE id = ?').get(req.params.id));
 });
 
@@ -44,11 +45,16 @@ router.delete('/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-// POST /api/recipes/:id/run  - one-click execution
+// POST /api/recipes/:id/run  - one-click execution. Body: { input?, args? }
+// input = stdin text for interactive scripts; args overrides the recipe's stored args for this run only.
 router.post('/:id/run', (req, res) => {
   const recipe = getRecipeFull(req.params.id);
   if (!recipe) return res.status(404).json({ error: 'Recipe not found' });
-  const { runId } = runRecipe(recipe);
+  const body = req.body || {};
+  const input = typeof body.input === 'string' ? body.input : '';
+  const opts = { input };
+  if (typeof body.args === 'string') opts.args = body.args;
+  const { runId } = runRecipe(recipe, opts);
   res.status(202).json({ run_id: runId, status: 'running', poll: `/api/runs/${runId}` });
 });
 

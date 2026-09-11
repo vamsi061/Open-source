@@ -23,9 +23,11 @@ CREATE TABLE IF NOT EXISTS recipes (
   project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   command TEXT NOT NULL,
+  args TEXT DEFAULT '',
   setup TEXT DEFAULT '',
   env TEXT DEFAULT '',
   working_dir TEXT DEFAULT '',
+  use_venv INTEGER NOT NULL DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -35,6 +37,8 @@ CREATE TABLE IF NOT EXISTS runs (
   status TEXT NOT NULL DEFAULT 'running',
   exit_code INTEGER,
   output TEXT DEFAULT '',
+  input TEXT DEFAULT '',
+  args TEXT DEFAULT '',
   started_at TEXT DEFAULT (datetime('now')),
   finished_at TEXT
 );

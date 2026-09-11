@@ -27,7 +27,7 @@ router.get('/:id', (req, res) => {
   const row = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Project not found' });
   const tags = db.prepare('SELECT t.name FROM tags t JOIN project_tags pt ON pt.tag_id = t.id WHERE pt.project_id = ?').all(row.id).map(x => x.name);
-  const recipes = db.prepare('SELECT id, title, command, setup, env FROM recipes WHERE project_id = ?').all(row.id);
+  const recipes = db.prepare('SELECT * FROM recipes WHERE project_id = ?').all(row.id);
   res.json({ ...row, tags, recipes });
 });
 

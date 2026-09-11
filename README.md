@@ -29,10 +29,10 @@ npm start          # API on http://localhost:4000
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/recipes?project_id=1` | List recipes |
-| POST | `/api/recipes` | Create `{project_id, title, command, setup, working_dir, env}` |
+| POST | `/api/recipes` | Create `{project_id, title, command, args, setup, working_dir, env}` — `command` accepts multiple lines (run in order), `args` is appended to the command line |
 | PUT | `/api/recipes/:id` | Update |
 | DELETE | `/api/recipes/:id` | Delete |
-| POST | `/api/recipes/:id/run` | **⭐ One-click execute** |
+| POST | `/api/recipes/:id/run` | **⭐ One-click execute** — body `{input?, args?}`: stdin text for interactive scripts, per-run args override |
 | POST | `/api/recipes/:id/kill` | Stop latest running execution |
 | GET | `/api/recipes/:id/runs` | Run history for a recipe |
 
@@ -66,6 +66,7 @@ curl -X POST localhost:4000/api/recipes -H 'Content-Type: application/json' \
 ## Notes
 
 - Commands run via `/bin/bash -c` in the recipe's `working_dir` (or repo dir). Output capped at ~200KB per run.
+- Stdin: `POST /api/recipes/:id/run` accepts `{input: "..."}` (one answer per line), piped to the script. With no input, stdin is closed (EOF) so scripts that call `input()` fail fast instead of hanging in `running` forever. In the UI, use the ⌨ button to type answers at run time.
 - `setup` runs before `command` in the same shell (e.g. `npm install`).
 - `env` accepts `KEY=value` lines, applied to the run's environment.
 - Runs orphaned by a server restart are automatically marked failed.

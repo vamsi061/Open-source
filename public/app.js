@@ -1,5 +1,6 @@
 /* RepoVault frontend */
 const $ = (sel) => document.querySelector(sel);
+
 const api = (path, opts = {}) =>
   fetch(`/api${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -14,6 +15,25 @@ let currentProject = null;
 let currentRunId = null;
 let pollTimer = null;
 let editingProjectId = null;
+let editingRecipeId = null;
+let searchTimer = null;
+
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+function mkButton(label, cls, onclick, title) {
+  const b = document.createElement('button');
+  if (cls) b.className = cls;
+  b.textContent = label;
+  if (title) b.title = title;
+  if (onclick) b.onclick = onclick;
+  return b;
+}
 
 /* ---------- projects list ---------- */
 async function loadProjects(q = '') {
@@ -24,26 +44,35 @@ async function loadProjects(q = '') {
 function renderList() {
   const ul = $('#project-list');
   ul.innerHTML = '';
+  $('#project-count').textContent = projects.length || '';
   if (!projects.length) {
-    ul.innerHTML = '<li class="empty">No projects found.<br>Create one with ＋ New Project</li>';
+    ul.innerHTML = '<li class="empty">No projects found.<br>Start with ＋ New project.</li>';
     return;
   }
   for (const p of projects) {
     const li = document.createElement('li');
-    li.className = `project${currentProject && currentProject.id === p.id ? ' active' : ''}`;
-    li.innerHTML = `
-      <div class="p-name"></div>
-      <div class="p-purpose"></div>
-      <div class="p-tags"></div>`;
-    li.querySelector('.p-name').textContent = p.name;
-    li.querySelector('.p-purpose').textContent = p.purpose || p.description || '';
-    const tags = li.querySelector('.p-tags');
-    (p.tags || []).forEach((t) => {
-      const s = document.createElement('span');
-      s.className = 'tag';
-      s.textContent = t;
-      tags.appendChild(s);
-    });
+    li.className = 'project' + (currentProject && currentProject.id === p.id ? ' active' : '');
+    const name = document.createElement('div');
+    name.className = 'p-name';
+    name.textContent = p.name;
+    li.appendChild(name);
+    if (p.purpose || p.description) {
+      const purpose = document.createElement('div');
+      purpose.className = 'p-purpose';
+      purpose.textContent = p.purpose || p.description;
+      li.appendChild(purpose);
+    }
+    if ((p.tags || []).length) {
+      const tags = document.createElement('div');
+      tags.className = 'p-tags';
+      for (const t of p.tags) {
+        const s = document.createElement('span');
+        s.className = 'tag';
+        s.textContent = t;
+        tags.appendChild(s);
+      }
+      li.appendChild(tags);
+    }
     li.onclick = () => selectProject(p.id);
     ul.appendChild(li);
   }
@@ -56,10 +85,20 @@ async function selectProject(id) {
   renderDetail();
 }
 
-function renderDetail() {
+async function renderDetail() {
   const p = currentProject;
   const el = $('#detail');
   el.innerHTML = '';
+
+  // one fetch of recent runs, grouped per recipe for the ribbons / last-run rows
+  const byRecipe = {};
+  try {
+    const ids = new Set((p.recipes || []).map((r) => r.id));
+    const runs = await api('/runs?limit=200');
+    for (const run of runs) {
+      if (ids.has(run.recipe_id)) (byRecipe[run.recipe_id] ||= []).push(run);
+    }
+  } catch (_) { /* ribbons stay empty */ }
 
   const head = document.createElement('div');
   head.className = 'd-head';
@@ -69,29 +108,22 @@ function renderDetail() {
 
   const actions = document.createElement('div');
   actions.className = 'd-actions';
-  const editBtn = document.createElement('button');
-  editBtn.className = 'secondary';
-  editBtn.textContent = 'Edit';
-  editBtn.onclick = () => openProjectDialog(p);
-  const delBtn = document.createElement('button');
-  delBtn.className = 'danger';
-  delBtn.textContent = 'Delete';
-  delBtn.onclick = async () => {
-    if (!confirm(`Delete project "${p.name}" and all its recipes/runs?`)) return;
+  actions.appendChild(mkButton('Edit', 'ghost', () => openProjectDialog(p)));
+  actions.appendChild(mkButton('Delete', 'danger', async () => {
+    if (!confirm(`Delete project "${p.name}" and all its recipes and runs?`)) return;
     await api(`/projects/${p.id}`, { method: 'DELETE' });
     currentProject = null;
     $('#detail').innerHTML = '<div class="placeholder">Select a project, or create one</div>';
     loadProjects($('#search').value.trim());
-  };
-  actions.append(editBtn, delBtn);
+  }));
   head.appendChild(actions);
   el.appendChild(head);
 
   if (p.purpose) {
-    const pu = document.createElement('div');
-    pu.className = 'd-purpose';
-    pu.textContent = `Purpose: ${p.purpose}`;
-    el.appendChild(pu);
+    const d = document.createElement('div');
+    d.className = 'd-purpose';
+    d.textContent = p.purpose;
+    el.appendChild(d);
   }
   if (p.repo_url) {
     const repo = document.createElement('div');
@@ -99,154 +131,160 @@ function renderDetail() {
     const a = document.createElement('a');
     a.href = p.repo_url;
     a.target = '_blank';
+    a.rel = 'noopener';
     a.textContent = p.repo_url;
     repo.appendChild(a);
     el.appendChild(repo);
   }
   if (p.description) {
-    const de = document.createElement('div');
-    de.className = 'd-purpose';
-    de.textContent = p.description;
-    el.appendChild(de);
+    const d = document.createElement('div');
+    d.className = 'd-desc';
+    d.textContent = p.description;
+    el.appendChild(d);
+  }
+  if ((p.tags || []).length) {
+    const tags = document.createElement('div');
+    tags.className = 'd-tags';
+    for (const t of p.tags) {
+      const s = document.createElement('span');
+      s.className = 'tag';
+      s.textContent = t;
+      tags.appendChild(s);
+    }
+    el.appendChild(tags);
   }
 
   const sec = document.createElement('section');
   sec.className = 'recipes';
   const h3 = document.createElement('h3');
-  h3.textContent = 'Recipes (how to run it)';
-  const addBtn = document.createElement('button');
-  addBtn.textContent = '＋ Add Recipe';
-  addBtn.onclick = () => $('#recipe-dialog').showModal();
-  h3.appendChild(addBtn);
+  h3.appendChild(document.createTextNode('Recipes'));
+  h3.appendChild(mkButton('＋ Add recipe', 'primary', () => openRecipeDialog()));
   sec.appendChild(h3);
 
   if (!p.recipes || !p.recipes.length) {
     const em = document.createElement('div');
     em.className = 'empty';
+    em.style.border = '1px dashed var(--line-strong)';
+    em.style.borderRadius = '8px';
     em.textContent = 'No recipes yet — save how you run this project.';
     sec.appendChild(em);
   }
-  for (const r of p.recipes || []) renderRecipe(sec, r);
+  for (const r of p.recipes || []) renderRecipe(sec, r, byRecipe[r.id] || []);
   el.appendChild(sec);
 }
 
-function renderRecipe(sec, r) {
+function renderRecipe(sec, r, runs) {
   const card = document.createElement('div');
   card.className = 'recipe';
-  card.dataset.recipeId = r.id;
 
   const top = document.createElement('div');
   top.className = 'r-top';
   const title = document.createElement('span');
   title.className = 'r-title';
   title.textContent = r.title;
-  const runBtn = document.createElement('button');
-  runBtn.textContent = '▶ Run';
-  runBtn.onclick = () => runRecipe(r, runBtn);
-  const delBtn = document.createElement('button');
-  delBtn.className = 'danger';
-  delBtn.textContent = '✕';
-  delBtn.title = 'Delete recipe';
-  delBtn.onclick = async () => {
+  top.appendChild(title);
+
+  // run ribbon: recent history as status squares, oldest → newest left → right
+  if (runs.length) {
+    const ribbon = document.createElement('span');
+    ribbon.className = 'ribbon';
+    ribbon.title = `Last ${runs.length} runs, oldest to newest`;
+    for (const run of [...runs].reverse()) {
+      const sq = document.createElement('i');
+      sq.className = run.status;
+      ribbon.appendChild(sq);
+    }
+    top.appendChild(ribbon);
+  }
+
+  const spacer = document.createElement('span');
+  spacer.className = 'r-spacer';
+  top.appendChild(spacer);
+
+  const runBtn = mkButton('▶ Run', 'primary', () => runRecipe(r, runBtn));
+  const inputBtn = mkButton('⌨ Input', 'ghost', () => {
+    const input = prompt(`Stdin for "${r.title}" — one answer per line:`, '');
+    if (input === null) return; // cancelled
+    runRecipe(r, inputBtn, input);
+  }, 'Run with keyboard input for scripts that prompt via input()/readline()');
+  const editBtn = mkButton('Edit', 'ghost', () => openRecipeDialog(r));
+  const delBtn = mkButton('✕', 'danger', async () => {
     if (!confirm(`Delete recipe "${r.title}"?`)) return;
     await api(`/recipes/${r.id}`, { method: 'DELETE' });
     selectProject(currentProject.id);
-  };
-  top.append(title, runBtn, delBtn);
+  }, 'Delete recipe');
+  top.append(runBtn, inputBtn, editBtn, delBtn);
   card.appendChild(top);
 
   const cmd = document.createElement('div');
   cmd.className = 'r-cmd';
-  cmd.textContent = `$ ${r.setup ? r.setup + '\n' : ''}${r.command}`;
+  const fullCmd = r.args ? `${r.command} ${r.args}` : r.command;
+  cmd.textContent = (r.setup ? `$ ${r.setup}\n` : '') + `$ ${fullCmd}`;
   card.appendChild(cmd);
 
-  const meta = [];
-  if (r.working_dir) meta.push(`dir: ${r.working_dir}`);
-  if (r.env) meta.push(`env: ${r.env.replace(/\n/g, ' ')}`);
-  if (meta.length) {
-    const m = document.createElement('div');
-    m.className = 'r-meta';
-    m.textContent = meta.join('  ·  ');
-    card.appendChild(m);
+  const meta = document.createElement('div');
+  meta.className = 'r-meta';
+  if (r.working_dir) {
+    const d = document.createElement('span');
+    d.textContent = `dir: ${r.working_dir}`;
+    meta.appendChild(d);
   }
-
-  // venv badge + toggle button
-  const venvRow = document.createElement('div');
-  venvRow.style.cssText = 'margin-top:8px;display:flex;align-items:center;gap:8px';
-  const venvBadge = document.createElement('span');
-  venvBadge.className = 'tag';
-  venvBadge.textContent = '🐍 venv: ' + (r.use_venv ? 'ON' : 'off');
-  venvBadge.style.cursor = 'pointer';
-  venvBadge.title = 'Click to toggle venv for this recipe';
-  venvBadge.onclick = async () => {
-    await api(`/recipes/${r.id}`, { method: 'PUT', body: JSON.stringify({ use_venv: !r.use_venv }) });
+  if (r.env) {
+    const e = document.createElement('span');
+    e.textContent = `env: ${String(r.env).replace(/\n/g, ' ')}`;
+    meta.appendChild(e);
+  }
+  // venv toggle — the runner auto-creates .venv in the working dir when on
+  const venv = document.createElement('button');
+  venv.type = 'button';
+  venv.className = 'venv-chip' + (r.use_venv ? ' on' : '');
+  venv.textContent = r.use_venv ? 'venv: on' : 'venv: off';
+  venv.title = 'Auto-creates .venv in the working dir and activates it before running. Click to toggle.';
+  venv.onclick = async () => {
+    await api(`/recipes/${r.id}`, { method: 'PUT', body: JSON.stringify({ use_venv: r.use_venv ? 0 : 1 }) });
     selectProject(currentProject.id);
   };
-  const venvSetupBtn = document.createElement('button');
-  venvSetupBtn.className = 'secondary';
-  venvSetupBtn.style.padding = '4px 10px';
-  venvSetupBtn.style.fontSize = '12px';
-  venvSetupBtn.textContent = '🐍 Setup venv + install requirements';
-  venvSetupBtn.title = 'Creates .venv in the working dir and runs pip install -r requirements.txt';
-  venvSetupBtn.onclick = () => venvSetup(r, venvSetupBtn);
-  venvRow.append(venvBadge, venvSetupBtn);
-  card.appendChild(venvRow);
+  meta.appendChild(venv);
+  card.appendChild(meta);
 
   const last = document.createElement('div');
   last.className = 'r-last';
-  last.textContent = 'loading last run…';
-  card.appendChild(last);
-  api(`/runs?recipe_id=${r.id}&limit=1`).then((runs) => {
-    if (!runs.length) { last.textContent = 'never run'; return; }
-    const run = runs[0];
-    last.innerHTML = '';
+  if (!runs.length) {
+    last.textContent = 'never run';
+  } else {
+    const run = runs[0]; // API returns newest first
+    last.classList.add('clickable');
+    last.title = 'Show output';
     const badge = document.createElement('span');
     badge.className = `badge ${run.status}`;
     badge.textContent = run.status;
-    last.append(badge, document.createTextNode(`  run #${run.id} · ${run.finished_at || run.started_at}${run.exit_code !== null && run.exit_code !== undefined ? ' · exit ' + run.exit_code : ''}`));
-    last.style.cursor = 'pointer';
-    last.title = 'Click to view output';
-    last.onclick = () => openOutput(run.id);
-  }).catch(() => { last.textContent = ''; });
+    const idSpan = document.createElement('span');
+    idSpan.textContent = `run #${run.id}`;
+    const timeSpan = document.createElement('span');
+    timeSpan.textContent = run.finished_at || run.started_at;
+    last.append(badge, idSpan, timeSpan);
+    if (run.exit_code !== null && run.exit_code !== undefined) {
+      const exitSpan = document.createElement('span');
+      exitSpan.textContent = `exit ${run.exit_code}`;
+      last.appendChild(exitSpan);
+    }
+    last.onclick = () => openOutput(run.id, r.title);
+  }
+  card.appendChild(last);
 
   sec.appendChild(card);
 }
 
-/* ---------- venv setup ---------- */
-async function venvSetup(r, btn) {
-  btn.disabled = true;
-  try {
-    // one-off run: create venv if missing, then pip install requirements if present
-    const body = JSON.stringify({
-      title: `[venv setup] ${r.title}`,
-      command: 'if [ -f requirements.txt ]; then pip install -r requirements.txt; else echo "no requirements.txt found"; fi',
-      setup: '',
-      working_dir: r.working_dir || '',
-      env: r.env || '',
-    });
-    // ensure use_venv is on so the runner creates/activates the venv
-    if (!r.use_venv) await api(`/recipes/${r.id}`, { method: 'PUT', body: JSON.stringify({ use_venv: 1 }) });
-    const res = await api(`/recipes/${r.id}/run`, { method: 'POST' });
-    openOutput(res.run_id, `venv setup: ${r.title}`);
-  } catch (e) {
-    alert(`venv setup failed: ${e.message}`);
-  } finally {
-    btn.disabled = false;
-    if (currentProject) selectProject(currentProject.id);
-  }
-}
-
 /* ---------- run ---------- */
-async function runRecipe(r, btn) {
+async function runRecipe(r, btn, input = '') {
   btn.disabled = true;
   try {
-    const res = await api(`/recipes/${r.id}/run`, { method: 'POST' });
+    const res = await api(`/recipes/${r.id}/run`, { method: 'POST', body: JSON.stringify({ input }) });
     openOutput(res.run_id, r.title);
   } catch (e) {
-    alert(`Run failed: ${e.message}`);
+    toast(`Run failed: ${e.message}`);
   } finally {
     btn.disabled = false;
-    if (currentProject) selectProject(currentProject.id);
   }
 }
 
@@ -273,15 +311,15 @@ async function poll() {
   try {
     const run = await api(`/runs/${currentRunId}`);
     const out = $('#output');
-    if (run.recipe_title && !$('#output-title').textContent.startsWith('Run: ')) {
-      $('#output-title').textContent = `Run: ${run.recipe_title}`;
-    }
     out.textContent = run.output || '(no output yet)';
     out.scrollTop = out.scrollHeight;
     setStatus(run.status);
     $('#exit-code').textContent = run.exit_code !== null && run.exit_code !== undefined ? `exit ${run.exit_code}` : '';
-    if (run.status === 'running') pollTimer = setTimeout(poll, 1000);
-    else if (currentProject) selectProject(currentProject.id); // refresh last-run badges
+    if (run.status === 'running') {
+      pollTimer = setTimeout(poll, 1000);
+    } else if (currentProject) {
+      selectProject(currentProject.id); // refresh ribbons + last-run rows
+    }
   } catch (e) {
     setStatus('failed');
     $('#output').textContent = `Error polling run: ${e.message}`;
@@ -290,7 +328,7 @@ async function poll() {
 
 $('#kill-btn').onclick = async () => {
   if (!currentRunId) return;
-  try { await api(`/runs/${currentRunId}/kill`, { method: 'POST' }); } catch (e) { /* already done */ }
+  try { await api(`/runs/${currentRunId}/kill`, { method: 'POST' }); } catch (_) { /* already done */ }
   poll();
 };
 $('#close-output').onclick = () => {
@@ -302,7 +340,7 @@ $('#close-output').onclick = () => {
 /* ---------- project dialog ---------- */
 function openProjectDialog(p = null) {
   editingProjectId = p ? p.id : null;
-  $('#project-dlg-title').textContent = p ? 'Edit Project' : 'New Project';
+  $('#project-dlg-title').textContent = p ? 'Edit project' : 'New project';
   const f = $('#project-form');
   f.name.value = p ? p.name : '';
   f.repo_url.value = p ? p.repo_url : '';
@@ -335,36 +373,55 @@ $('#project-form').onsubmit = async (e) => {
       selectProject(created.id);
     }
   } catch (err) {
-    alert(err.message);
+    toast(err.message);
   }
 };
 
 /* ---------- recipe dialog ---------- */
-$('#recipe-cancel').onclick = () => $('#recipe-dialog').close();
+function openRecipeDialog(r = null) {
+  editingRecipeId = r ? r.id : null;
+  $('#recipe-dlg-title').textContent = r ? 'Edit recipe' : 'New recipe';
+  const f = $('#recipe-form');
+  f.reset();
+  f.title.value = r ? r.title : '';
+  f.command.value = r ? r.command : '';
+  f.args.value = r ? r.args || '' : '';
+  f.setup.value = r ? r.setup || '' : '';
+  f.working_dir.value = r ? r.working_dir || '' : '';
+  f.env.value = r ? r.env || '' : '';
+  f.use_venv.checked = r ? !!r.use_venv : false;
+  $('#recipe-dialog').showModal();
+}
+
+$('#recipe-cancel').onclick = () => { editingRecipeId = null; $('#recipe-dialog').close(); };
 $('#recipe-form').onsubmit = async (e) => {
   e.preventDefault();
   const f = e.target;
   const body = {
-    project_id: currentProject.id,
     title: f.title.value.trim(),
     command: f.command.value.trim(),
+    args: f.args.value.trim(),
     setup: f.setup.value.trim(),
     working_dir: f.working_dir.value.trim(),
     env: f.env.value,
     use_venv: f.use_venv.checked ? 1 : 0,
   };
   try {
-    await api('/recipes', { method: 'POST', body: JSON.stringify(body) });
+    if (editingRecipeId) {
+      await api(`/recipes/${editingRecipeId}`, { method: 'PUT', body: JSON.stringify(body) });
+    } else {
+      await api('/recipes', { method: 'POST', body: JSON.stringify({ ...body, project_id: currentProject.id }) });
+    }
     $('#recipe-dialog').close();
     f.reset();
+    editingRecipeId = null;
     selectProject(currentProject.id);
   } catch (err) {
-    alert(err.message);
+    toast(err.message);
   }
 };
 
 /* ---------- search ---------- */
-let searchTimer;
 $('#search').addEventListener('input', (e) => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => loadProjects(e.target.value.trim()), 250);
