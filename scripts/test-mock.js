@@ -17,8 +17,8 @@ const express = require('express');
 const http = require('http');
 
 /* ---------------- minimal PostgREST mock ---------------- */
-const store = { projects: [], tags: [], project_tags: [], recipes: [] };
-let nextId = { projects: 1, tags: 1, recipes: 1, runs: 1 };
+const store = { projects: [], tags: [], project_tags: [], recipes: [], categories: [] };
+let nextId = { projects: 1, tags: 1, recipes: 1, runs: 1, categories: 1 };
 
 const app = express();
 app.use(express.json());
@@ -100,6 +100,12 @@ app.route('/rest/v1/:table').all((req, res, next) => {
   if (req.method === 'DELETE') {
     const removed = rows.filter(match);
     store[table] = rows.filter((r) => !match(r));
+    // FK on delete set null: removing a category unlinks its projects
+    if (table === 'categories') {
+      for (const p of store.projects) {
+        if (p.category_id && removed.some((c) => c.id === p.category_id)) p.category_id = null;
+      }
+    }
     return res.json(representation(req, removed));
   }
   // GET — return rows, adding any requested embeds
@@ -112,6 +118,13 @@ app.route('/rest/v1/:table').all((req, res, next) => {
     }
     if (select.includes('project_tags(count)')) {
       copy.project_tags = [{ count: store.project_tags.filter((l) => l.tag_id === r.id).length }];
+    }
+    if (select.includes('categories(name)')) {
+      const c = store.categories.find((x) => x.id === r.category_id);
+      copy.categories = c ? { name: c.name } : null;
+    }
+    if (select.includes('projects(count)')) {
+      copy.projects = [{ count: store.projects.filter((p) => p.category_id === r.id).length }];
     }
     if (select.includes('tags(name)')) {
       const t = store.tags.find((x) => x.id === r.tag_id);
@@ -134,6 +147,7 @@ module.exports = { store, mockServer };
 const { getRun } = require('../src/services/runner');
 const routes = {
   projects: require('../src/routes/projects'),
+  categories: require('../src/routes/categories'),
   recipes: require('../src/routes/recipes'),
   runs: require('../src/routes/runs'),
   tags: require('../src/routes/tags'),
@@ -211,6 +225,47 @@ async function runTests() {
   console.log('\n-- tags --');
   r = await call('GET', '/tags');
   check('GET /tags -> counts', r.status === 200 && r.json[0].project_count === 1, JSON.stringify(r.json));
+
+  console.log('\n-- categories --');
+  r = await call('POST', '/categories', { name: 'OSINT' });
+  check('POST /categories -> 201', r.status === 201 && r.json.name === 'OSINT' && r.json.id === 1, JSON.stringify(r.json));
+  const catId = r.json.id;
+
+  r = await call('POST', '/categories', { name: 'osint' });
+  check('POST /categories duplicate -> 409', r.status === 409 && r.json.id === catId, JSON.stringify(r.json));
+
+  r = await call('POST', '/projects', { name: 'Cat Project', category_id: catId, tags: ['cat'] });
+  check('POST /projects with category_id -> 201', r.status === 201 && r.json.category_id === catId, JSON.stringify(r.json));
+  const cpid = r.json.id;
+
+  r = await call('GET', '/projects');
+  check('GET /projects embeds category name', r.status === 200 && r.json.some((p) => p.category === 'OSINT'), JSON.stringify(r.json));
+
+  r = await call('GET', '/projects?q=osint');
+  // note: the mock ignores PostgREST or= filters, so it returns all projects;
+  // real Supabase narrows this to category/tag matches (verified against live DB)
+  check('GET /projects?q= -> 200 and includes category match', r.status === 200 && r.json.some((p) => p.category === 'OSINT'), JSON.stringify(r.json.map((p) => p.name)));
+
+  r = await call('GET', '/categories');
+  check('GET /categories -> project_count', r.status === 200 && r.json[0].project_count === 1, JSON.stringify(r.json));
+
+  r = await call('PUT', `/projects/${cpid}`, { category_id: null });
+  check('PUT /projects category_id null -> unlinked', r.status === 200 && r.json.category === null && r.json.category_id === null, JSON.stringify(r.json));
+
+  r = await call('PUT', `/projects/${cpid}`, { category_id: catId });
+  check('PUT /projects category_id set again', r.status === 200 && r.json.category === 'OSINT', JSON.stringify(r.json));
+
+  r = await call('PUT', `/projects/${cpid}`, { category_id: 999 });
+  check('PUT /projects unknown category -> 400', r.status === 400, JSON.stringify(r.json));
+
+  r = await call('PUT', `/categories/${catId}`, { name: 'OSINT Tools' });
+  check('PUT /categories/:id -> renamed', r.status === 200 && r.json.name === 'OSINT Tools', JSON.stringify(r.json));
+
+  r = await call('DELETE', `/categories/${catId}`);
+  check('DELETE /categories/:id -> ok', r.status === 200 && r.json.ok === true);
+
+  r = await call('GET', `/projects/${cpid}`);
+  check('project survives category delete, unlinked', r.status === 200 && r.json.category === null && r.json.category_id === null, JSON.stringify(r.json));
 
   console.log('\n-- delete --');
   r = await call('DELETE', `/projects/${pid}`);

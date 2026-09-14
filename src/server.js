@@ -5,6 +5,7 @@ const app = express();
 app.use(express.json());
 
 app.use('/api/projects', require('./routes/projects'));
+app.use('/api/categories', require('./routes/categories'));
 app.use('/api/recipes', require('./routes/recipes'));
 app.use('/api/runs', require('./routes/runs'));
 app.use('/api/tags', require('./routes/tags'));

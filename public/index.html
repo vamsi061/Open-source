@@ -145,6 +145,13 @@ dialog textarea { font-family: var(--font-mono); font-size: 12.5px; min-height: 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+/* ---------- categories ---------- */
+.side-filter { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+#category-filter, #pf-category { width: 100%; padding: 7px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; color: var(--text); font: 13px var(--font-ui); outline: none; }
+#category-filter:focus, #pf-category:focus { border-color: var(--brass); }
+.p-cat { font-size: 10px; font-weight: 600; color: var(--teal); letter-spacing: .4px; text-transform: uppercase; }
+.d-cat { display: inline-block; margin-left: 10px; padding: 3px 10px; border: 1px solid var(--teal); border-radius: 999px; color: var(--teal); font-size: 11px; font-weight: 600; letter-spacing: .4px; text-transform: uppercase; vertical-align: middle; }
+
 </style>
 </head>
 <body>
@@ -165,6 +172,11 @@ dialog textarea { font-family: var(--font-mono); font-size: 12.5px; min-height: 
 <main>
   <aside>
     <div class="side-head"><span>Projects</span><span id="project-count"></span></div>
+    <div class="side-filter">
+      <select id="category-filter" aria-label="Filter by category">
+        <option value="">All categories</option>
+      </select>
+    </div>
     <ul id="project-list"></ul>
   </aside>
   <section id="detail"><div class="placeholder">Select a project, or create one</div></section>
@@ -189,6 +201,7 @@ dialog textarea { font-family: var(--font-mono); font-size: 12.5px; min-height: 
     <label for="pf-name">Name *</label><input id="pf-name" name="name" required>
     <label for="pf-repo">Repo URL</label><input id="pf-repo" name="repo_url" class="mono" placeholder="https://github.com/…">
     <label for="pf-purpose">Purpose (what do you use it for?)</label><input id="pf-purpose" name="purpose" placeholder="e.g. PDF conversion, reverse proxy…">
+    <label for="pf-category">Category</label><select id="pf-category" name="category_id"><option value="">— none —</option></select>
     <label for="pf-tags">Tags (comma separated)</label><input id="pf-tags" name="tags" placeholder="pdf, tools, ai">
     <div class="dlg-actions">
       <button type="button" class="ghost" id="project-cancel">Cancel</button>

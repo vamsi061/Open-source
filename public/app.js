@@ -11,6 +11,7 @@ const api = (path, opts = {}) =>
   });
 
 let projects = [];
+let categories = [];
 let currentProject = null;
 let currentRunId = null;
 let pollTimer = null;
@@ -35,6 +36,21 @@ function mkButton(label, cls, onclick, title) {
   return b;
 }
 
+const escapeHtml = (s) =>
+  String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ---------- categories ---------- */
+async function loadCategories() {
+  categories = await api('/categories');
+  $('#pf-category').innerHTML =
+    '<option value="">— none —</option>' +
+    categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') +
+    '<option value="__new__">➕ New category…</option>';
+  $('#category-filter').innerHTML =
+    '<option value="">All categories</option>' +
+    categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+}
+
 /* ---------- projects list ---------- */
 async function loadProjects(q = '') {
   projects = await api(`/projects${q ? `?q=${encodeURIComponent(q)}` : ''}`);
@@ -44,18 +60,28 @@ async function loadProjects(q = '') {
 function renderList() {
   const ul = $('#project-list');
   ul.innerHTML = '';
-  $('#project-count').textContent = projects.length || '';
-  if (!projects.length) {
-    ul.innerHTML = '<li class="empty">No projects found.<br>Start with ＋ New project.</li>';
+  const catSel = $('#category-filter').value;
+  const shown = catSel ? projects.filter((p) => String(p.category_id) === catSel) : projects;
+  $('#project-count').textContent = shown.length || '';
+  if (!shown.length) {
+    ul.innerHTML = catSel
+      ? '<li class="empty">No projects in this category.</li>'
+      : '<li class="empty">No projects found.<br>Start with ＋ New project.</li>';
     return;
   }
-  for (const p of projects) {
+  for (const p of shown) {
     const li = document.createElement('li');
     li.className = 'project' + (currentProject && currentProject.id === p.id ? ' active' : '');
     const name = document.createElement('div');
     name.className = 'p-name';
     name.textContent = p.name;
     li.appendChild(name);
+    if (p.category) {
+      const cat = document.createElement('div');
+      cat.className = 'p-cat';
+      cat.textContent = p.category;
+      li.appendChild(cat);
+    }
     if (p.purpose || p.description) {
       const purpose = document.createElement('div');
       purpose.className = 'p-purpose';
@@ -105,6 +131,12 @@ async function renderDetail() {
   const h2 = document.createElement('h2');
   h2.textContent = p.name;
   head.appendChild(h2);
+  if (p.category) {
+    const cat = document.createElement('span');
+    cat.className = 'd-cat';
+    cat.textContent = p.category;
+    head.appendChild(cat);
+  }
 
   const actions = document.createElement('div');
   actions.className = 'd-actions';
@@ -345,12 +377,28 @@ function openProjectDialog(p = null) {
   f.name.value = p ? p.name : '';
   f.repo_url.value = p ? p.repo_url : '';
   f.purpose.value = p ? p.purpose : '';
+  f.category_id.value = p && p.category_id ? String(p.category_id) : '';
   f.tags.value = p ? (p.tags || []).join(', ') : '';
   $('#project-dialog').showModal();
 }
 
 $('#new-project-btn').onclick = () => openProjectDialog();
 $('#project-cancel').onclick = () => $('#project-dialog').close();
+$('#pf-category').onchange = async (e) => {
+  if (e.target.value !== '__new__') return;
+  const name = prompt('New category name:');
+  e.target.value = '';
+  if (!name || !name.trim()) return;
+  try {
+    const c = await api('/categories', { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
+    await loadCategories();
+    $('#pf-category').value = String(c.id);
+    toast(`Category "${c.name}" created`);
+  } catch (err) {
+    toast(err.message);
+  }
+};
+$('#category-filter').onchange = () => renderList();
 $('#project-form').onsubmit = async (e) => {
   e.preventDefault();
   const f = e.target;
@@ -358,6 +406,7 @@ $('#project-form').onsubmit = async (e) => {
     name: f.name.value.trim(),
     repo_url: f.repo_url.value.trim(),
     purpose: f.purpose.value.trim(),
+    category_id: f.category_id.value ? Number(f.category_id.value) : null,
     tags: f.tags.value.split(',').map((t) => t.trim()).filter(Boolean),
   };
   try {
@@ -429,3 +478,4 @@ $('#search').addEventListener('input', (e) => {
 
 /* ---------- init ---------- */
 loadProjects();
+loadCategories();

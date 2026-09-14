@@ -77,6 +77,16 @@ npm start          # API on http://localhost:4000
 
 Run records live in server memory only — they are **not** stored in Supabase and are cleared when the server restarts.
 
+### Categories
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/categories` | All categories with project counts |
+| POST | `/api/categories` | Create a category `{ name }` |
+| PUT | `/api/categories/:id` | Rename a category `{ name }` |
+| DELETE | `/api/categories/:id` | Delete a category (projects are kept, just unlinked) |
+
+Set `category_id` on a project via `POST/PUT /api/projects` (pass `null` to unlink). Deleting a category never deletes projects.
+
 ### Tags / Health
 - `GET /api/tags` - all tags with usage counts
 - `GET /api/health` - `{ok:true}`

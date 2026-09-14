@@ -42,12 +42,29 @@ async function withTags(rows) {
   return rows.map((r) => ({ ...r, tags: map.get(r.id) || [] }));
 }
 
-// GET /api/projects?q=  - search by name/description/purpose/repo/tags
+// resolve a client-supplied category_id: null, an existing category id,
+// or false when the id doesn't exist (caller turns that into a 400)
+async function resolveCategory(categoryId) {
+  if (categoryId === null || categoryId === undefined || categoryId === '') return null;
+  const rows = await q(db.from('categories').select('id').eq('id', categoryId).limit(1));
+  return rows.length ? rows[0].id : false;
+}
+
+// attach category name (PostgREST embed) to project rows
+function shapeCategories(rows) {
+  return rows.map((r) => {
+    const cat = r.categories;
+    const { categories: _embedded, ...rest } = r;
+    return { ...rest, category: cat && typeof cat === 'object' ? cat.name : null };
+  });
+}
+
+// GET /api/projects?q=  - search by name/description/purpose/repo/tags/category
 router.get(
   '/',
   wrap(async (req, res) => {
     const text = (req.query.q || '').trim();
-    let query = db.from('projects').select('*').order('name');
+    let query = db.from('projects').select('*, categories(name)').order('name');
     if (text) {
       const safe = text.replace(/[,()*]/g, ' ').trim(); // keep PostgREST or= syntax intact
       if (safe) {
@@ -58,7 +75,7 @@ router.get(
           `purpose.ilike.${like}`,
           `repo_url.ilike.${like}`,
         ];
-        // extend the search to tag names
+        // extend the search to tag names and category names
         const tagIds = await q(db.from('tags').select('id').ilike('name', `%${text}%`));
         if (tagIds.length) {
           const pts = await q(
@@ -67,10 +84,12 @@ router.get(
           if (pts.length)
             parts.push(`id.in.(${[...new Set(pts.map((p) => p.project_id))].join(',')})`);
         }
+        const catIds = await q(db.from('categories').select('id').ilike('name', `%${text}%`));
+        if (catIds.length) parts.push(`category_id.in.(${catIds.map((c) => c.id).join(',')})`);
         query = query.or(parts.join(','));
       }
     }
-    res.json(await withTags(await q(query)));
+    res.json(shapeCategories(await withTags(await q(query))));
   })
 );
 
@@ -78,9 +97,9 @@ router.get(
 router.get(
   '/:id',
   wrap(async (req, res) => {
-    const rows = await q(db.from('projects').select('*').eq('id', req.params.id).limit(1));
+    const rows = await q(db.from('projects').select('*, categories(name)').eq('id', req.params.id).limit(1));
     if (!rows.length) return res.status(404).json({ error: 'Project not found' });
-    const [project] = await withTags(rows);
+    const [project] = shapeCategories(await withTags(rows));
     const recipes = await q(
       db.from('recipes').select('*').eq('project_id', project.id).order('id')
     );
@@ -88,14 +107,21 @@ router.get(
   })
 );
 
-// POST /api/projects  { name, repo_url, description, purpose, tags: [] }
+// POST /api/projects  { name, repo_url, description, purpose, tags: [], category_id }
 router.post(
   '/',
   wrap(async (req, res) => {
-    const { name, repo_url = '', description = '', purpose = '', tags = [] } = req.body || {};
+    const { name, repo_url = '', description = '', purpose = '', tags = [], category_id = null } =
+      req.body || {};
     if (!name) return res.status(400).json({ error: 'name is required' });
+    const category = await resolveCategory(category_id);
+    if (category === false) return res.status(400).json({ error: 'category not found' });
     const project = await q(
-      db.from('projects').insert({ name, repo_url, description, purpose }).select().single()
+      db
+        .from('projects')
+        .insert({ name, repo_url, description, purpose, category_id: category })
+        .select()
+        .single()
     );
     await attachTagsToProject(project.id, tags);
     res.status(201).json(project);
@@ -109,7 +135,10 @@ router.put(
     const rows = await q(db.from('projects').select('*').eq('id', req.params.id).limit(1));
     if (!rows.length) return res.status(404).json({ error: 'Project not found' });
     const row = rows[0];
-    const { name, repo_url, description, purpose, tags } = req.body || {};
+    const { name, repo_url, description, purpose, tags, category_id } = req.body || {};
+    const category =
+      category_id === undefined ? row.category_id : await resolveCategory(category_id);
+    if (category === false) return res.status(400).json({ error: 'category not found' });
     const updated = await q(
       db
         .from('projects')
@@ -118,6 +147,7 @@ router.put(
           repo_url: repo_url ?? row.repo_url,
           description: description ?? row.description,
           purpose: purpose ?? row.purpose,
+          category_id: category,
         })
         .eq('id', req.params.id)
         .select()
@@ -127,7 +157,11 @@ router.put(
       await q(db.from('project_tags').delete().eq('project_id', req.params.id));
       await attachTagsToProject(updated.id, tags);
     }
-    const [result] = await withTags([updated]);
+    // re-fetch so the response carries the category name embed (the update-select can't)
+    const [fresh] = await q(
+      db.from('projects').select('*, categories(name)').eq('id', req.params.id).limit(1)
+    );
+    const [result] = shapeCategories(await withTags([fresh]));
     res.json(result);
   })
 );
