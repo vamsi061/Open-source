@@ -1,15 +1,22 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/database');
+const { q } = require('../db/database');
 
 // GET /api/tags - all tags with usage counts
-router.get('/', (req, res) => {
-  const rows = db.prepare(`
-    SELECT t.id, t.name, COUNT(pt.project_id) AS project_count
-    FROM tags t LEFT JOIN project_tags pt ON pt.tag_id = t.id
-    GROUP BY t.id ORDER BY t.name
-  `).all();
-  res.json(rows);
+router.get('/', async (req, res, next) => {
+  try {
+    const rows = await q(db.from('tags').select('id, name, project_tags(count)').order('name'));
+    res.json(
+      rows.map((t) => ({
+        id: t.id,
+        name: t.name,
+        project_count: t.project_tags?.[0]?.count ?? 0,
+      }))
+    );
+  } catch (err) {
+    next(err);
+  }
 });
 
 module.exports = router;

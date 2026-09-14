@@ -204,7 +204,7 @@ dialog textarea { font-family: var(--font-mono); font-size: 12.5px; min-height: 
     <label for="rf-command">Command * (one per line, run in order)</label><textarea id="rf-command" name="command" required class="mono" placeholder="python vehicle_lookup.py&#10;python export.py"></textarea>
     <label for="rf-args">Arguments (appended to the command line)</label><input id="rf-args" name="args" class="mono" placeholder="--rc=AP16DH1924">
     <label for="rf-setup">Setup (runs before the command)</label><input id="rf-setup" name="setup" class="mono" placeholder="pip install -r requirements.txt">
-    <label for="rf-dir">Working directory (absolute path)</label><input id="rf-dir" name="working_dir" class="mono" placeholder="/Users/you/project">
+    <label for="rf-dir">Working directory (optional — blank = auto-clone the project's GitHub repo)</label><input id="rf-dir" name="working_dir" class="mono" placeholder="/Users/you/project (or leave blank)">
     <label for="rf-env">Env vars (KEY=value per line)</label><textarea id="rf-env" name="env" placeholder="PORT=3000"></textarea>
     <label class="check-row"><input type="checkbox" name="use_venv"> <span>Create &amp; activate <span class="mono">.venv</span> before running</span></label>
     <div class="dlg-actions">

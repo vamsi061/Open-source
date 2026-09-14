@@ -1,10 +1,12 @@
 const { spawn } = require('child_process');
-const db = require('../db/database');
 const venv = require('./venv');
 
-const MAX_OUTPUT = 200000; // chars kept in DB
+const MAX_OUTPUT = 200000; // chars kept in memory
 const MAX_INPUT = 65536; // chars of stdin accepted per run
+const MAX_HISTORY = 500; // run records kept in memory (not persisted anywhere)
 const running = new Map(); // runId -> child process
+const history = []; // newest-first in-memory run records; cleared on restart
+let nextRunId = 1;
 
 // parse "KEY=value" lines into an object
 function parseEnv(str) {
@@ -16,14 +18,36 @@ function parseEnv(str) {
   return out;
 }
 
+// create an in-memory record for a new run (run history is not persisted)
+function newRunRecord(recipe, input, args) {
+  const rec = {
+    id: nextRunId++,
+    recipe_id: recipe.id,
+    recipe_title: recipe.title,
+    command: recipe.command,
+    status: 'running',
+    exit_code: null,
+    output: '',
+    input,
+    args,
+    started_at: new Date().toISOString(),
+    finished_at: null,
+  };
+  history.unshift(rec);
+  if (history.length > MAX_HISTORY) history.pop();
+  return rec;
+}
+
 function runRecipe(recipe, opts = {}, cb) {
   if (typeof opts === 'function') { cb = opts; opts = {}; }
   const input = typeof opts.input === 'string' ? opts.input.slice(0, MAX_INPUT) : '';
   // args: per-run override wins, else the recipe's stored args. Appended to the command line.
   const args = (typeof opts.args === 'string' ? opts.args : (recipe.args || '')).slice(0, MAX_INPUT);
-  const info = db.prepare('INSERT INTO runs (recipe_id, status, input, args) VALUES (?, ?, ?, ?)').run(recipe.id, 'running', input, args);
-  const runId = info.lastInsertRowid;
-  const cwd = recipe.working_dir || recipe.project_working_dir || process.cwd();
+  const rec = newRunRecord(recipe, input, args);
+  const runId = rec.id;
+  // priority: recipe's explicit working_dir > auto-cloned project repo > server dir
+  const cwd = recipe.working_dir || opts.cwd || process.cwd();
+  rec.output = `[repovault] dir: ${cwd}\n`;
 
   // chain: optional setup (e.g. npm install) then command(s), in one shell.
   // command may hold multiple lines — bash runs them sequentially.
@@ -51,29 +75,31 @@ function runRecipe(recipe, opts = {}, cb) {
     child.stdin.end();
   }
 
-  let output = '';
   const append = (chunk) => {
-    output += chunk;
-    if (output.length > MAX_OUTPUT) output = output.slice(-MAX_OUTPUT);
+    rec.output += chunk;
+    if (rec.output.length > MAX_OUTPUT) rec.output = rec.output.slice(-MAX_OUTPUT);
   };
   child.stdout.on('data', append);
   child.stderr.on('data', append);
 
   child.on('close', (code) => {
     running.delete(runId);
-    if (!input && code !== 0 && /EOF when reading a line|EOFError/.test(output)) {
-      output += "\n[repovault hint] The script waited for keyboard input but stdin was empty (EOF). Re-run with the ⌨ button to type the answers, or bake them into the command as arguments.";
+    if (!input && code !== 0 && /EOF when reading a line|EOFError/.test(rec.output)) {
+      rec.output += "\n[repovault hint] The script waited for keyboard input but stdin was empty (EOF). Re-run with the ⌨ button to type the answers, or bake them into the command as arguments.";
     }
-    if (output.length > MAX_OUTPUT) output = output.slice(-MAX_OUTPUT);
-    db.prepare('UPDATE runs SET status = ?, exit_code = ?, output = ?, finished_at = datetime(\'now\') WHERE id = ?')
-      .run(code === 0 ? 'success' : 'failed', code, output, runId);
+    if (rec.output.length > MAX_OUTPUT) rec.output = rec.output.slice(-MAX_OUTPUT);
+    rec.status = code === 0 ? 'success' : 'failed';
+    rec.exit_code = code;
+    rec.finished_at = new Date().toISOString();
     if (cb) cb(runId, code);
   });
 
   child.on('error', (err) => {
     running.delete(runId);
-    db.prepare('UPDATE runs SET status = ?, exit_code = ?, output = ?, finished_at = datetime(\'now\') WHERE id = ?')
-      .run('failed', -1, String(err), runId);
+    rec.status = 'failed';
+    rec.exit_code = -1;
+    rec.output = String(err);
+    rec.finished_at = new Date().toISOString();
     if (cb) cb(runId, -1);
   });
 
@@ -87,9 +113,22 @@ function killRun(runId) {
   return true;
 }
 
-// on startup, mark orphaned runs from previous process as failed
-function recoverOrphans() {
-  db.prepare("UPDATE runs SET status = 'failed', exit_code = -1, output = COALESCE(output, '') || '\n[interrupted: server restarted]', finished_at = datetime('now') WHERE status = 'running'").run();
+function getRun(id) {
+  return history.find((r) => r.id === Number(id)) || null;
 }
 
-module.exports = { runRecipe, killRun, recoverOrphans };
+// filterable history: ?recipe_id=&status=&limit= (newest first)
+function listRuns({ recipe_id, status, limit = 50 } = {}) {
+  return history
+    .filter((r) =>
+      (recipe_id === undefined || r.recipe_id === Number(recipe_id)) &&
+      (status === undefined || r.status === status)
+    )
+    .slice(0, Math.max(1, Number(limit) || 50));
+}
+
+function latestRunningForRecipe(recipeId) {
+  return history.find((r) => r.recipe_id === Number(recipeId) && r.status === 'running') || null;
+}
+
+module.exports = { runRecipe, killRun, getRun, listRuns, latestRunningForRecipe };
