@@ -42,12 +42,20 @@ create table if not exists recipes (
   args        text not null default '',
   setup       text not null default '',
   env         text not null default '',
+  stdin       text not null default '',
   working_dir text not null default '',
   use_venv    smallint not null default 0,
+  input_as_args smallint not null default 0,
   created_at  timestamptz not null default now()
 );
 
 create index if not exists idx_recipes_project on recipes(project_id);
+-- stdin: optional pre-fill default for the Run dialog (one answer per line).
+-- Run-time input itself is NEVER persisted — it changes on every run.
+alter table recipes add column if not exists stdin text not null default '';
+-- input_as_args: when 1, Run-dialog input is appended to the command as quoted
+-- CLI arguments (one per line, replacing stored args for that run) instead of stdin.
+alter table recipes add column if not exists input_as_args smallint not null default 0;
 create index if not exists idx_project_tags_tag on project_tags(tag_id);
 create index if not exists idx_projects_category on projects(category_id);
 

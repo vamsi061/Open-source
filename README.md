@@ -64,7 +64,7 @@ npm start          # API on http://localhost:4000
 | POST | `/api/recipes` | Create `{project_id, title, command, args, setup, working_dir, env}` — `command` accepts multiple lines (run in order), `args` is appended to the command line |
 | PUT | `/api/recipes/:id` | Update |
 | DELETE | `/api/recipes/:id` | Delete |
-| POST | `/api/recipes/:id/run` | **⭐ One-click execute** — body `{input?, args?}`: stdin text for interactive scripts, per-run args override |
+| POST | `/api/recipes/:id/run` | **⭐ One-click execute** — body `{input?, args?}`: per-run input (stdin, or CLI args when the recipe has `input_as_args`); never persisted |
 | POST | `/api/recipes/:id/kill` | Stop latest running execution |
 | GET | `/api/recipes/:id/runs` | Run history for a recipe |
 
@@ -110,7 +110,8 @@ curl -X POST localhost:4000/api/recipes -H 'Content-Type: application/json' \
 ## Notes
 
 - Commands run via `/bin/bash -c` in the recipe's `working_dir` (or repo dir). Output capped at ~200KB per run.
-- Stdin: `POST /api/recipes/:id/run` accepts `{input: "..."}` (one answer per line), piped to the script. With no input, stdin is closed (EOF) so scripts that call `input()` fail fast instead of hanging in `running` forever. In the UI, use the ⌨ button to type answers at run time.
+- Stdin: `POST /api/recipes/:id/run` accepts `{input: "..."}` (one answer per line). Run-time input is never stored in the database — it travels with the run request only. By default it is piped to the script's stdin; with no input, stdin is closed (EOF) so scripts that call `input()` fail fast instead of hanging in `running` forever. In the UI, the Run dialog asks for it every time, pre-filled from the recipe's optional stdin default.
+- **Input → Args** (recipe flag): when enabled, the Run-dialog input is appended to the command line as shell-quoted CLI arguments — one per line, replacing the stored `args` for that run — instead of being piped to stdin. For tools that take the target as an argument, e.g. `user-scanner -e <email>`.
 - `setup` runs before `command` in the same shell (e.g. `npm install`).
 - `env` accepts `KEY=value` lines, applied to the run's environment.
 - Run history is kept in server memory only (last ~500 runs) and is lost on restart — executions are never stored in Supabase.

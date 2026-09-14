@@ -3,7 +3,7 @@ const venv = require('./venv');
 
 const MAX_OUTPUT = 200000; // chars kept in memory
 const MAX_INPUT = 65536; // chars of stdin accepted per run
-const MAX_HISTORY = 500; // run records kept in memory (not persisted anywhere)
+const MAX_HISTORY = 200; // run records kept in memory (not persisted anywhere)
 const running = new Map(); // runId -> child process
 const history = []; // newest-first in-memory run records; cleared on restart
 let nextRunId = 1;
@@ -28,7 +28,7 @@ function newRunRecord(recipe, input, args) {
     status: 'running',
     exit_code: null,
     output: '',
-    input,
+    input_len: input.length, // input text is NOT kept in memory (RAM + privacy)
     args,
     started_at: new Date().toISOString(),
     finished_at: null,
@@ -69,6 +69,8 @@ function runRecipe(recipe, opts = {}, cb) {
   // Stdin: pipe the provided input (if any), then always EOF.
   // An open-but-silent stdin makes input()/readline() block forever, leaving
   // the run stuck in 'running' — closing it turns that into a fast failure.
+  // (input comes only with the run request — it is never persisted. Recipes
+  // with input_as_args receive it on the command line instead, never on stdin.)
   if (child.stdin) {
     child.stdin.on('error', () => {}); // swallow EPIPE when the child exits unread
     if (input) child.stdin.write(input.endsWith('\n') ? input : input + '\n');
@@ -85,7 +87,7 @@ function runRecipe(recipe, opts = {}, cb) {
   child.on('close', (code) => {
     running.delete(runId);
     if (!input && code !== 0 && /EOF when reading a line|EOFError/.test(rec.output)) {
-      rec.output += "\n[repovault hint] The script waited for keyboard input but stdin was empty (EOF). Re-run with the ⌨ button to type the answers, or bake them into the command as arguments.";
+      rec.output += "\n[repovault hint] The script waited for keyboard input but stdin was empty (EOF). Re-run and type the answers in the prompt, or bake them into the command as arguments.";
     }
     if (rec.output.length > MAX_OUTPUT) rec.output = rec.output.slice(-MAX_OUTPUT);
     rec.status = code === 0 ? 'success' : 'failed';
