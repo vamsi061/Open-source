@@ -5,10 +5,29 @@ A personal catalog of open-source projects with **one-click execution** of run r
 ## Stack
 
 - Node.js + Express (REST API)
-- **Supabase (Postgres)** — all projects, recipes, tags and run history are stored in the cloud
-- `@supabase/supabase-js` for data access
+- **Supabase (Postgres)** for the shared catalog — **or zero-config local SQLite** when Supabase is not configured
+- `@supabase/supabase-js` for data access (the local backend speaks the same query API)
 
-## Setup
+## Quick start (no configuration needed)
+
+```bash
+npm install
+npm start
+# → repovault listening on http://localhost:4000 (db: local SQLite (zero-config))
+```
+
+Open **http://localhost:4000** — the catalog (projects, recipes, categories, tags) is seeded
+automatically from `src/db/seed.json` into `data/local.db` on first start. Everything works:
+run recipes, edit projects, add new ones. Run history stays in server memory.
+
+- Data lives in `data/local.db` (gitignored). Delete it and restart to reseed from the snapshot.
+- Refresh the snapshot after changing the catalog: `node scripts/dump-seed.js` (reads the
+  configured Supabase, or the local DB), then commit `src/db/seed.json`.
+
+## Setup (optional: shared Supabase backend)
+
+To keep one shared catalog across devices, configure Supabase — otherwise the local SQLite
+database above is used automatically:
 
 1. Create a project at [supabase.com](https://supabase.com) (free tier is fine).
 2. In the Supabase Dashboard → **SQL Editor**, paste the contents of `supabase/schema.sql` and run it. This creates all tables.
@@ -114,5 +133,5 @@ curl -X POST localhost:4000/api/recipes -H 'Content-Type: application/json' \
 - **Input → Args** (recipe flag): when enabled, the Run-dialog input is appended to the command line as shell-quoted CLI arguments — one per line, replacing the stored `args` for that run — instead of being piped to stdin. For tools that take the target as an argument, e.g. `user-scanner -e <email>`.
 - `setup` runs before `command` in the same shell (e.g. `npm install`).
 - `env` accepts `KEY=value` lines, applied to the run's environment.
-- Run history is kept in server memory only (last ~500 runs) and is lost on restart — executions are never stored in Supabase.
+- Run history is kept in server memory only (last ~200 runs) and is lost on restart — executions are never stored in Supabase.
 - Stored in Supabase: projects (GitHub repos), tags, and recipes only.

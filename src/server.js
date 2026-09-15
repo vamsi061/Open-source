@@ -1,5 +1,6 @@
 const path = require('path');
 const express = require('express');
+const { backend } = require('./db/database');
 
 const app = express();
 app.use(express.json());
@@ -11,7 +12,7 @@ app.use('/api/recipes', require('./routes/recipes'));
 app.use('/api/runs', require('./routes/runs'));
 app.use('/api/tags', require('./routes/tags'));
 
-app.get('/api/health', (req, res) => res.json({ ok: true, service: 'repovault', db: 'supabase' }));
+app.get('/api/health', (req, res) => res.json({ ok: true, service: 'repovault', db: backend }));
 
 // static web UI
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -21,8 +22,9 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || 'Internal error' });
 });
 
+const DB_LABEL = backend === 'supabase' ? 'Supabase' : 'local SQLite (zero-config)';
 const PORT = process.env.PORT || 4000;
-const server = app.listen(PORT, () => console.log(`repovault listening on http://localhost:${PORT} (db: Supabase)`));
+const server = app.listen(PORT, () => console.log(`repovault listening on http://localhost:${PORT} (db: ${DB_LABEL})`));
 // keep-alive window: Chrome/Node race — with the default 5s, the server closes idle
 // sockets while the browser still has them pooled; the next request written to such a
 // zombie socket hangs forever (fetch never resolves, CLOSE_WAIT conns pile up).

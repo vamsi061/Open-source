@@ -1,0 +1,121 @@
+{
+  "_comment": "Snapshot of the RepoVault catalog for zero-config (local SQLite) mode. Regenerate with scripts/dump-seed.js.",
+  "generated_at": "2026-09-14T16:26:14.079Z",
+  "categories": [
+    {
+      "id": 1,
+      "name": "OSINT"
+    }
+  ],
+  "projects": [
+    {
+      "id": 9,
+      "name": "Vehicle Info",
+      "repo_url": "https://github.com/thakur2309/vehicle-osint-scanner",
+      "description": "OSINT vehicle registration lookup scanner",
+      "purpose": "Look up vehicle details from a registration number",
+      "category_id": 1
+    },
+    {
+      "id": 10,
+      "name": "user scanner",
+      "repo_url": "https://github.com/kaifcodec/user-scanner.git",
+      "description": "",
+      "purpose": "Information Gathering using username and email id",
+      "category_id": 1
+    }
+  ],
+  "tags": [
+    {
+      "id": "30c0b4e7-5521-4099-867d-d6b196f346ed",
+      "name": "email"
+    },
+    {
+      "id": "5a262423-d442-4cbb-ae54-b1d613f8916d",
+      "name": "vehicle"
+    },
+    {
+      "id": "74486843-44d8-4a4f-933c-a77ebc6622f5",
+      "name": "information gathering"
+    },
+    {
+      "id": "7bd7eae3-5625-47ed-affe-2e3f2f56de3e",
+      "name": "Information Gathering"
+    },
+    {
+      "id": "a2a5e2af-6436-45b4-90b7-ef45c820a25b",
+      "name": "osint"
+    },
+    {
+      "id": "e0a321bf-7781-4b89-bdbc-a6572b1cffae",
+      "name": "username"
+    }
+  ],
+  "project_tags": [
+    {
+      "project_id": 9,
+      "tag_id": "5a262423-d442-4cbb-ae54-b1d613f8916d"
+    },
+    {
+      "project_id": 9,
+      "tag_id": "74486843-44d8-4a4f-933c-a77ebc6622f5"
+    },
+    {
+      "project_id": 9,
+      "tag_id": "a2a5e2af-6436-45b4-90b7-ef45c820a25b"
+    },
+    {
+      "project_id": 10,
+      "tag_id": "30c0b4e7-5521-4099-867d-d6b196f346ed"
+    },
+    {
+      "project_id": 10,
+      "tag_id": "7bd7eae3-5625-47ed-affe-2e3f2f56de3e"
+    },
+    {
+      "project_id": 10,
+      "tag_id": "e0a321bf-7781-4b89-bdbc-a6572b1cffae"
+    }
+  ],
+  "recipes": [
+    {
+      "id": 9,
+      "project_id": 9,
+      "title": "Vehicle lookup",
+      "command": "python vehicle_lookup.py",
+      "args": "",
+      "setup": "pip install -r requirements.txt",
+      "env": "",
+      "working_dir": "",
+      "use_venv": 1,
+      "stdin": "",
+      "input_as_args": 0
+    },
+    {
+      "id": 10,
+      "project_id": 10,
+      "title": "Basic scan for Email ID",
+      "command": "user-scanner -e",
+      "args": "",
+      "setup": "pip install user-scanner",
+      "env": "",
+      "working_dir": "",
+      "use_venv": 1,
+      "stdin": "",
+      "input_as_args": 1
+    },
+    {
+      "id": 11,
+      "project_id": 10,
+      "title": "Basic scan with username",
+      "command": "user-scanner -u",
+      "args": "",
+      "setup": "pip install user-scanner",
+      "env": "",
+      "working_dir": "",
+      "use_venv": 1,
+      "stdin": "",
+      "input_as_args": 1
+    }
+  ]
+}
